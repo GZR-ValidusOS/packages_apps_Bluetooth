@@ -382,7 +382,23 @@ static void key_pressed_callback(bt_bdaddr_t* bd_addr) {
     sCallbackEnv->DeleteLocalRef(addr);
 }
 
-static void at_bind_callback(char* hf_ind, bthf_bind_type_t type, bt_bdaddr_t* bd_addr) {
+static void at_bind_callback(char *at_string, bt_bdaddr_t *bd_addr) {
+    CHECK_CALLBACK_ENV
+
+    jbyteArray addr = marshall_bda(bd_addr);
+    if (addr == NULL)
+        return;
+
+    jstring js_at_string = sCallbackEnv->NewStringUTF(at_string);
+
+    sCallbackEnv->CallVoidMethod(mCallbacksObj, method_onAtBind, js_at_string, addr);
+    checkAndClearExceptionFromCallback(sCallbackEnv, __FUNCTION__);
+
+    sCallbackEnv->DeleteLocalRef(js_at_string);
+    sCallbackEnv->DeleteLocalRef(addr);
+}
+
+static void at_bind_cmd_callback(char* hf_ind, bthf_bind_type_t type, bt_bdaddr_t* bd_addr) {
     jbyteArray addr;
 
     CHECK_CALLBACK_ENV
@@ -401,7 +417,7 @@ static void at_bind_callback(char* hf_ind, bthf_bind_type_t type, bt_bdaddr_t* b
     sCallbackEnv->DeleteLocalRef(addr);
 }
 
-static void at_biev_callback(char* hf_ind_val, bt_bdaddr_t* bd_addr) {
+static void at_biev_cmd_callback(char* hf_ind_val, bt_bdaddr_t* bd_addr) {
     jbyteArray addr;
 
     CHECK_CALLBACK_ENV
@@ -420,6 +436,17 @@ static void at_biev_callback(char* hf_ind_val, bt_bdaddr_t* bd_addr) {
     sCallbackEnv->DeleteLocalRef(addr);
 }
 
+static void at_biev_callback(bthf_hf_ind_type_t ind_id, int ind_value, bt_bdaddr_t *bd_addr) {
+    CHECK_CALLBACK_ENV
+
+    jbyteArray addr = marshall_bda(bd_addr);
+    if (addr == NULL)
+        return;
+
+    sCallbackEnv->CallVoidMethod(mCallbacksObj, method_onAtBiev, ind_id, (jint)ind_value, addr);
+    checkAndClearExceptionFromCallback(sCallbackEnv, __FUNCTION__);
+    sCallbackEnv->DeleteLocalRef(addr);
+}
 
 static bthf_callbacks_t sBluetoothHfpCallbacks = {
     sizeof(sBluetoothHfpCallbacks),
@@ -439,9 +466,11 @@ static bthf_callbacks_t sBluetoothHfpCallbacks = {
     at_cops_callback,
     at_clcc_callback,
     unknown_at_callback,
-    key_pressed_callback,
     at_bind_callback,
-    at_biev_callback
+    at_biev_callback,
+    key_pressed_callback,
+    at_bind_cmd_callback,
+    at_biev_cmd_callback
 };
 
 static void classInitNative(JNIEnv* env, jclass clazz) {
